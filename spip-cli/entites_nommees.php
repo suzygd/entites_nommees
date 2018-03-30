@@ -110,11 +110,11 @@ class entites_nommees extends Command {
 						$extraits = sql_allfetsel("id_objet","spip_mots_liens","objet='article' and id_mot in(605,621)");
 						$values = array_map('array_pop', $extraits);
 						$extraits = implode(',', $values);
-						$auteurs = sql_allfetsel("id_auteur","spip_auteurs_liens","objet='article' and id_objet in ($extraits,1008,15594)");
+						$auteurs = sql_allfetsel("id_auteur","spip_auteurs_liens","objet='article' and id_objet in ($extraits)");
 						$values = array_map('array_pop', $auteurs);
 						$auteurs_extraits = implode(',', array_unique($values));
 						
-						$auteurs = sql_allfetsel("nom","spip_auteurs","id_auteur not in ($auteurs_extraits)");
+						$auteurs = sql_allfetsel("nom","spip_auteurs","id_auteur not in ($auteurs_extraits,1008,15594)");
 						
 						foreach($auteurs as $a){
 							$nom = $a["nom"] ;
@@ -144,7 +144,7 @@ class entites_nommees extends Command {
 									continue;
 								list($entite_actuelle,$entite_dans_extrait, $type_entite, $entite, $type_correc) = explode("\t", $e);
 								//var_dump($entite_actuelle,$entite_dans_extrait, $type_entite, $entite);
-								$sel = 	"select * from entites_nommees where BINARY entite like " . sql_quote($entite_actuelle) . " and extrait like '%". addslashes($entite_dans_extrait) ."%'" ;
+								$sel = 	"select * from entites_nommees where entite like " . sql_quote($entite_actuelle) . " and extrait like '%". addslashes($entite_dans_extrait) ."%'" ;
 								$q = sql_query($sel);
 								$nb = sql_count($q);
 								if($nb > 0){
@@ -240,7 +240,7 @@ class entites_nommees extends Command {
 						echo $nb . " entite pas connues \n";
 						while($res = sql_fetch($ent)){
 							$del =  "delete from entites_nommees where entite=" . sql_quote($res['entite']) ;
-							echo $del . " (" . $res['d'] . "< \n";
+							echo $del . " (" . $res['d'] . ") \n";
 							sql_query($del);
 							echo "\n" ;
 						}
@@ -286,14 +286,14 @@ class entites_nommees extends Command {
 						$decompte_entites .= preg_replace("/\R/", "", $reference['entite']) . "	" . $reference['type_entite'] . "	" . $reference['nb'] . "\n" ;
 						// super long en BINARY
 						// toutes les versions avec accents ne seront pas updatés, sauf si mode BINARY, mais qui est long.
-						sql_query("update entites_nommees set statut='publie' where entite like " . _q($reference['entite']));
+						sql_query("update entites_nommees set statut='publie' where entite like " . _q($reference['entite']) . " and statut='prop'");
 						
 						// on teste si y'a besoin de faire du binary
-						$cmpt = sizeof(sql_allfetsel("entite","entites_nommees","entite like " . _q($reference['entite']),"BINARY entite","","","count(entite)>1")) ;
+						$cmpt = sizeof(sql_allfetsel("entite","entites_nommees","entite like " . _q($reference['entite']) . " and statut='prop'","BINARY entite","","","count(entite)>1")) ;
 						if($cmpt > 1){
 							$output->writeln("<info>" . $reference['entite'] . " à " . $cmpt . " variantes</info>");
 							// repasse en mode BINARY
-							sql_query("update entites_nommees set statut='publie' where BINARY entite like " . _q($reference['entite']));
+							sql_query("update entites_nommees set statut='publie' where BINARY entite like " . _q($reference['entite']) . " and statut='prop'");
 						}
 						//sql_query("update entites_nommees set statut='publie' where entite=" . _q($reference['entite']));
 					}
@@ -316,9 +316,9 @@ class entites_nommees extends Command {
 					
 					passthru("plugins/entites_nommees/spip-cli/verifier_personnalites_wikipedia.sh", $reponse); // chmod +x sync_data.sh la premiere fois
 					
-					var_dump($res);
+					//var_dump($reponse);
 					
-					if($res){
+					if($reponse){
 						// recaler après coup les ajouts dans les fichiers /listes_lexicales/*/*
 						$output->writeln("<info>Requalification des données d'après les listes_lexicales/*/*</info>");
 						include_spip('iterateur/data');
@@ -401,7 +401,7 @@ class entites_nommees extends Command {
 				foreach($res as $a){
 					
 					/// articles
-					$select = "id_article, titre, chapo, texte, date_redac" ;
+					$select = "id_article, titre, chapo, texte, date_redac, date" ;
 					$table = "spip_articles" ;
 					$where = "id_article=" . $a['id_article'] ;
 					
@@ -431,7 +431,9 @@ class entites_nommees extends Command {
 					
 					//var_dump($fragments);
 					
-					enregistrer_entites($fragments, $art['id_article'], $art['date_redac']);
+					$date_entite = ($art['date_redac']) ? $art['date_redac'] : $art['date'] ;
+					
+					enregistrer_entites($fragments, $art['id_article'], $date_entite);
 					
 					// Si tout s'est bien passé, on avance la barre
 					$progress->setFormat("<fg=white;bg=blue>%message%</>\n" . '%current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% %memory:6s%' ."\n\n");
